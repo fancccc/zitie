@@ -1,0 +1,35 @@
+# Python
+__pycache__/
+*.py[cod]
+*.pyc
+*.pyo
+
+# IDE
+.idea/
+.vscode/
+
+# Virtual environments
+.venv/
+venv/
+env/
+ENV/
+
+# Environment variables
+.env
+
+# Logs
+*.log
+
+# Project specific
+# Chinese poetry database (external repository)
+chinese-poetry/
+
+# Generated files
+*.pdf
+pdf/
+
+# Font archives (keep .ttf/.otf files)
+fonts/*.zip
+
+# Streamlit cache
+.streamlit/
