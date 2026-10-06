@@ -1,0 +1,725 @@
+<!DOCTYPE html>
+<html lang="zh-CN">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>字帖生成器</title>
+<style>
+*{box-sizing:border-box}
+html,body{margin:0;padding:0}
+body{font-family:system-ui,"Microsoft YaHei",sans-serif;background:#eef1f5;color:#1f2937;display:flex;height:100vh;overflow:hidden}
+aside{width:370px;flex-shrink:0;overflow-y:auto;background:#fff;border-right:1px solid #e2e5ea;padding:14px 16px 32px}
+main{flex:1;overflow:auto;display:flex;flex-direction:column;align-items:center;padding:12px 16px 40px}
+h1{font-size:19px;margin:2px 0 2px;letter-spacing:1px}
+.sub{font-size:12px;color:#6b7280;margin:0 0 12px}
+.card{border:1px solid #e2e5ea;border-radius:10px;padding:10px 12px;margin-bottom:12px}
+.card h2{font-size:13px;margin:0 0 8px;color:#374151;font-weight:700}
+.card h2 small{font-weight:400;color:#9ca3af}
+.row{display:flex;align-items:center;gap:8px;margin:7px 0}
+.row>label:first-child{width:76px;flex-shrink:0;font-size:13px;color:#374151}
+.row output{font-size:12px;color:#6b7280;min-width:26px;text-align:right}
+select,textarea{width:100%;font-size:13px;padding:5px 6px;border:1px solid #d1d5db;border-radius:6px;background:#fff;color:#1f2937}
+textarea{resize:vertical;font-family:inherit;line-height:1.5}
+input[type=range]{flex:1;accent-color:#b91c1c}
+.seg{display:flex;gap:0;border:1px solid #d1d5db;border-radius:6px;overflow:hidden}
+.seg label{flex:1;text-align:center;font-size:12.5px;padding:5px 0;cursor:pointer;background:#fff;color:#374151;border-right:1px solid #d1d5db}
+.seg label:last-child{border-right:0}
+.seg input{display:none}
+.seg input:checked+span{color:#fff}
+.seg label:has(input:checked){background:#b91c1c;color:#fff}
+.chk{display:flex;align-items:center;gap:6px;font-size:13px;margin:6px 0;cursor:pointer;color:#374151}
+.btn{display:block;width:100%;padding:8px 10px;margin:6px 0;font-size:14px;border-radius:8px;border:1px solid #d1d5db;background:#fff;color:#1f2937;cursor:pointer}
+.btn:hover{background:#f9fafb}
+.btn.primary{background:#b91c1c;border-color:#b91c1c;color:#fff}
+.btn.primary:hover{background:#991b1b}
+.btn:disabled{opacity:.55;cursor:not-allowed}
+details{border:1px solid #e2e5ea;border-radius:8px;padding:8px 10px;margin-top:8px}
+summary{font-size:13px;cursor:pointer;color:#374151}
+#poemSearch{margin:8px 0 6px}
+#poemList{max-height:240px;overflow-y:auto;display:flex;flex-direction:column;gap:2px}
+#poemList button{all:unset;cursor:pointer;font-size:13px;padding:5px 8px;border-radius:6px;color:#374151}
+#poemList button:hover{background:#f3f4f6}
+#poemList button b{font-weight:600}
+#poemList button span{color:#9ca3af;font-size:12px;margin-left:6px}
+nav{display:flex;align-items:center;gap:14px;margin-bottom:10px;position:sticky;top:0;background:#eef1f5;padding:6px 0;z-index:5}
+nav button{padding:5px 14px;font-size:13px;border-radius:6px;border:1px solid #d1d5db;background:#fff;cursor:pointer}
+nav button:disabled{opacity:.4;cursor:not-allowed}
+#pageInfo{font-size:13px;font-weight:600}
+#metaInfo{font-size:12px;color:#6b7280;margin-bottom:10px}
+#previewWrap{background:#fff;box-shadow:0 2px 14px rgba(0,0,0,.18);border-radius:2px;line-height:0;max-width:100%}
+#pv{width:min(78vw,860px);max-width:100%;height:auto}
+.hint{font-size:12px;color:#9ca3af;margin-top:10px}
+kbd{background:#f3f4f6;border:1px solid #d1d5db;border-radius:4px;padding:0 4px;font-size:11px}
+@media (max-width:820px){body{flex-direction:column;height:auto;overflow:auto}aside{width:100%;border-right:0;border-bottom:1px solid #e2e5ea}#pv{width:100%}}
+</style>
+</head>
+<body>
+<aside>
+  <h1>字帖生成器</h1>
+  <p class="sub">单文件 · 离线可用 · 数据不出本机</p>
+
+  <div class="card">
+    <h2>内容</h2>
+    <textarea id="inputText" rows="5" placeholder="输入汉字 / 词语 / 句子，或从下方诗词库选一首"></textarea>
+    <details id="poemDetails">
+      <summary>诗词库（内置，点击选用）</summary>
+      <input id="poemSearch" placeholder="搜索诗名或作者…">
+      <div id="poemList"></div>
+    </details>
+  </div>
+
+  <div class="card">
+    <h2>格子与颜色</h2>
+    <div class="row"><label>格子类型</label>
+      <select id="gridType">
+        <option>田字格</option><option selected>米字格</option><option>回宫格</option><option>方格</option><option>九宫格</option>
+      </select>
+    </div>
+    <div class="row"><label>格线颜色</label>
+      <div class="seg" id="gridColor">
+        <label><input type="radio" name="gc" value="黑"><span>黑</span></label>
+        <label><input type="radio" name="gc" value="绿"><span>绿</span></label>
+        <label><input type="radio" name="gc" value="红" checked><span>红</span></label>
+      </div>
+    </div>
+    <div class="row"><label>文字颜色</label>
+      <div class="seg" id="textColor">
+        <label><input type="radio" name="tc" value="黑" checked><span>黑</span></label>
+        <label><input type="radio" name="tc" value="绿"><span>绿</span></label>
+        <label><input type="radio" name="tc" value="红"><span>红</span></label>
+      </div>
+    </div>
+  </div>
+
+  <div class="card">
+    <h2>排版与描红</h2>
+    <div class="row"><label>描红深浅</label>
+      <select id="depth">
+        <option>非常深</option><option>深</option><option>较深</option><option>略浅</option>
+        <option selected>适中</option><option>非常浅</option><option>白色（不可见）</option><option value="hollow">空芯（描边）</option>
+      </select>
+    </div>
+    <div class="row"><label>每行格子</label><input type="range" id="cols" min="5" max="20" value="10"><output id="colsV">10</output></div>
+    <div class="row"><label>每页行数</label><input type="range" id="rows" min="5" max="20" value="14"><output id="rowsV">14</output></div>
+    <div class="row"><label>每字重复</label><input type="range" id="rep" min="1" max="10" value="1"><output id="repV">1</output></div>
+    <div class="row"><label>字帖模式</label>
+      <select id="mode">
+        <option value="normal">普通模式（每行都有字）</option>
+        <option value="copy">临摹模式（每行后留空行）</option>
+      </select>
+    </div>
+    <label class="chk"><input type="checkbox" id="showDemo" checked> 显示示范字（描红）</label>
+    <label class="chk"><input type="checkbox" id="fillLast"> 填充尾页（用最后一个字补满）</label>
+    <label class="chk"><input type="checkbox" id="showPunct"> 标点独占一格（默认标在字格右下角）</label>
+  </div>
+
+  <div class="card">
+    <h2>字体 <small>自动加载 fonts/ 目录，推荐田英章楷书</small></h2>
+    <select id="fontSel"></select>
+    <input type="file" id="fontFile" accept=".ttf,.otf,.woff,.woff2" style="display:none">
+    <button class="btn" id="fontUploadBtn">上传字体文件（.ttf / .otf）</button>
+  </div>
+
+  <button class="btn primary" id="pdfBtn">导出 PDF（全部页面 · A4 300dpi）</button>
+  <button class="btn" id="pngBtn">保存 PNG（当前页）</button>
+  <p class="hint">预览翻页：<kbd>←</kbd> <kbd>→</kbd>。打印建议用导出的 PDF（300dpi）。上传的字体仅在内存中加载，不会保存。</p>
+</aside>
+
+<main>
+  <nav>
+    <button id="prevBtn">← 上一页</button>
+    <span id="pageInfo">第 1 页 / 共 1 页</span>
+    <button id="nextBtn">下一页 →</button>
+  </nav>
+  <div id="metaInfo"></div>
+  <div id="previewWrap"><canvas id="pv" width="1240" height="1754"></canvas></div>
+</main>
+
+<script>
+'use strict';
+// ===== 常量 =====
+const W = 2480, H = 3508;          // A4 @300dpi
+const MX = 150, MY = 250;          // 页边距
+const PW = 1240, PH = 1754;        // 预览画布尺寸
+const DEPTHS = {'非常深':220,'深':190,'较深':160,'略浅':130,'适中':110,'非常浅':80,'白色（不可见）':0};
+const COLORS = {'黑':'#000000','绿':'#00a000','红':'#c80000'};
+const FONT_LIST = [
+  {label:'楷体 KaiTi（推荐）', stack:'"KaiTi","STKaiti","楷体",serif', check:'KaiTi'},
+  {label:'华文楷体 STKaiti',   stack:'"STKaiti","KaiTi",serif',       check:'STKaiti'},
+  {label:'华文行楷 STXingkai', stack:'"STXingkai",serif',             check:'STXingkai'},
+  {label:'宋体 SimSun',        stack:'"SimSun","NSimSun",serif',      check:'SimSun'},
+  {label:'黑体 SimHei',        stack:'"SimHei",sans-serif',           check:'SimHei'},
+  {label:'微软雅黑',           stack:'"Microsoft YaHei",sans-serif',  check:'Microsoft YaHei'},
+  {label:'隶书 LiSu',          stack:'"LiSu","STLiti",serif',         check:'LiSu'},
+  {label:'幼圆 YouYuan',       stack:'"YouYuan",serif',               check:'YouYuan'},
+];
+
+// ===== 内置诗词库 =====
+const POEMS = [
+ ['咏鹅','骆宾王',['鹅，鹅，鹅，','曲项向天歌。','白毛浮绿水，','红掌拨清波。']],
+ ['静夜思','李白',['床前明月光，','疑是地上霜。','举头望明月，','低头思故乡。']],
+ ['春晓','孟浩然',['春眠不觉晓，','处处闻啼鸟。','夜来风雨声，','花落知多少。']],
+ ['悯农·其一','李绅',['春种一粒粟，','秋收万颗子。','四海无闲田，','农夫犹饿死。']],
+ ['悯农·其二','李绅',['锄禾日当午，','汗滴禾下土。','谁知盘中餐，','粒粒皆辛苦。']],
+ ['登鹳雀楼','王之涣',['白日依山尽，','黄河入海流。','欲穷千里目，','更上一层楼。']],
+ ['凉州词','王之涣',['黄河远上白云间，','一片孤城万仞山。','羌笛何须怨杨柳，','春风不度玉门关。']],
+ ['相思','王维',['红豆生南国，','春来发几枝。','愿君多采撷，','此物最相思。']],
+ ['鹿柴','王维',['空山不见人，','但闻人语响。','返景入深林，','复照青苔上。']],
+ ['竹里馆','王维',['独坐幽篁里，','弹琴复长啸。','深林人不知，','明月来相照。']],
+ ['画','王维',['远看山有色，','近听水无声。','春去花还在，','人来鸟不惊。']],
+ ['送元二使安西','王维',['渭城朝雨浥轻尘，','客舍青青柳色新。','劝君更尽一杯酒，','西出阳关无故人。']],
+ ['九月九日忆山东兄弟','王维',['独在异乡为异客，','每逢佳节倍思亲。','遥知兄弟登高处，','遍插茱萸少一人。']],
+ ['古朗月行（节选）','李白',['小时不识月，','呼作白玉盘。','又疑瑶台镜，','飞在青云端。']],
+ ['望庐山瀑布','李白',['日照香炉生紫烟，','遥看瀑布挂前川。','飞流直下三千尺，','疑是银河落九天。']],
+ ['早发白帝城','李白',['朝辞白帝彩云间，','千里江陵一日还。','两岸猿声啼不住，','轻舟已过万重山。']],
+ ['赠汪伦','李白',['李白乘舟将欲行，','忽闻岸上踏歌声。','桃花潭水深千尺，','不及汪伦送我情。']],
+ ['黄鹤楼送孟浩然之广陵','李白',['故人西辞黄鹤楼，','烟花三月下扬州。','孤帆远影碧空尽，','唯见长江天际流。']],
+ ['望天门山','李白',['天门中断楚江开，','碧水东流至此回。','两岸青山相对出，','孤帆一片日边来。']],
+ ['独坐敬亭山','李白',['众鸟高飞尽，','孤云独去闲。','相看两不厌，','只有敬亭山。']],
+ ['秋浦歌','李白',['白发三千丈，','缘愁似个长。','不知明镜里，','何处得秋霜。']],
+ ['峨眉山月歌','李白',['峨眉山月半轮秋，','影入平羌江水流。','夜发清溪向三峡，','思君不见下渝州。']],
+ ['绝句','杜甫',['两个黄鹂鸣翠柳，','一行白鹭上青天。','窗含西岭千秋雪，','门泊东吴万里船。']],
+ ['绝句·其二','杜甫',['迟日江山丽，','春风花草香。','泥融飞燕子，','沙暖睡鸳鸯。']],
+ ['春夜喜雨（节选）','杜甫',['好雨知时节，','当春乃发生。','随风潜入夜，','润物细无声。']],
+ ['江畔独步寻花','杜甫',['黄四娘家花满蹊，','千朵万朵压枝低。','留连戏蝶时时舞，','自在娇莺恰恰啼。']],
+ ['枫桥夜泊','张继',['月落乌啼霜满天，','江枫渔火对愁眠。','姑苏城外寒山寺，','夜半钟声到客船。']],
+ ['山行','杜牧',['远上寒山石径斜，','白云生处有人家。','停车坐爱枫林晚，','霜叶红于二月花。']],
+ ['清明','杜牧',['清明时节雨纷纷，','路上行人欲断魂。','借问酒家何处有，','牧童遥指杏花村。']],
+ ['江南春','杜牧',['千里莺啼绿映红，','水村山郭酒旗风。','南朝四百八十寺，','多少楼台烟雨中。']],
+ ['江雪','柳宗元',['千山鸟飞绝，','万径人踪灭。','孤舟蓑笠翁，','独钓寒江雪。']],
+ ['咏柳','贺知章',['碧玉妆成一树高，','万条垂下绿丝绦。','不知细叶谁裁出，','二月春风似剪刀。']],
+ ['回乡偶书','贺知章',['少小离家老大回，','乡音无改鬓毛衰。','儿童相见不相识，','笑问客从何处来。']],
+ ['凉州词','王翰',['葡萄美酒夜光杯，','欲饮琵琶马上催。','醉卧沙场君莫笑，','古来征战几人回。']],
+ ['出塞','王昌龄',['秦时明月汉时关，','万里长征人未还。','但使龙城飞将在，','不教胡马度阴山。']],
+ ['芙蓉楼送辛渐','王昌龄',['寒雨连江夜入吴，','平明送客楚山孤。','洛阳亲友如相问，','一片冰心在玉壶。']],
+ ['别董大','高适',['千里黄云白日曛，','北风吹雁雪纷纷。','莫愁前路无知己，','天下谁人不识君。']],
+ ['泊船瓜洲','王安石',['京口瓜洲一水间，','钟山只隔数重山。','春风又绿江南岸，','明月何时照我还。']],
+ ['元日','王安石',['爆竹声中一岁除，','春风送暖入屠苏。','千门万户曈曈日，','总把新桃换旧符。']],
+ ['梅花','王安石',['墙角数枝梅，','凌寒独自开。','遥知不是雪，','为有暗香来。']],
+ ['题西林壁','苏轼',['横看成岭侧成峰，','远近高低各不同。','不识庐山真面目，','只缘身在此山中。']],
+ ['饮湖上初晴后雨','苏轼',['水光潋滟晴方好，','山色空蒙雨亦奇。','欲把西湖比西子，','淡妆浓抹总相宜。']],
+ ['惠崇春江晓景','苏轼',['竹外桃花三两枝，','春江水暖鸭先知。','蒌蒿满地芦芽短，','正是河豚欲上时。']],
+ ['赠刘景文','苏轼',['荷尽已无擎雨盖，','菊残犹有傲霜枝。','一年好景君须记，','最是橙黄橘绿时。']],
+ ['六月二十七日望湖楼醉书','苏轼',['黑云翻墨未遮山，','白雨跳珠乱入船。','卷地风来忽吹散，','望湖楼下水如天。']],
+ ['夏日绝句','李清照',['生当作人杰，','死亦为鬼雄。','至今思项羽，','不肯过江东。']],
+ ['小池','杨万里',['泉眼无声惜细流，','树阴照水爱晴柔。','小荷才露尖尖角，','早有蜻蜓立上头。']],
+ ['晓出净慈寺送林子方','杨万里',['毕竟西湖六月中，','风光不与四时同。','接天莲叶无穷碧，','映日荷花别样红。']],
+ ['村居','高鼎',['草长莺飞二月天，','拂堤杨柳醉春烟。','儿童散学归来早，','忙趁东风放纸鸢。']],
+ ['所见','袁枚',['牧童骑黄牛，','歌声振林樾。','意欲捕鸣蝉，','忽然闭口立。']],
+ ['石灰吟','于谦',['千锤万凿出深山，','烈火焚烧若等闲。','粉骨碎身浑不怕，','要留清白在人间。']],
+ ['墨梅','王冕',['我家洗砚池头树，','朵朵花开淡墨痕。','不要人夸好颜色，','只留清气满乾坤。']],
+ ['竹石','郑燮',['咬定青山不放松，','立根原在破岩中。','千磨万击还坚劲，','任尔东西南北风。']],
+ ['己亥杂诗','龚自珍',['九州生气恃风雷，','万马齐喑究可哀。','我劝天公重抖擞，','不拘一格降人才。']],
+ ['游园不值','叶绍翁',['应怜屐齿印苍苔，','小扣柴扉久不开。','春色满园关不住，','一枝红杏出墙来。']],
+ ['夜书所见','叶绍翁',['萧萧梧叶送寒声，','江上秋风动客情。','知有儿童挑促织，','夜深篱落一灯明。']],
+ ['示儿','陆游',['死去元知万事空，','但悲不见九州同。','王师北定中原日，','家祭无忘告乃翁。']],
+ ['秋夜将晓出篱门迎凉有感','陆游',['三万里河东入海，','五千仞岳上摩天。','遗民泪尽胡尘里，','南望王师又一年。']],
+ ['长歌行（节选）','汉乐府',['百川东到海，','何时复西归？','少壮不努力，','老大徒伤悲。']],
+ ['敕勒歌','北朝民歌',['敕勒川，阴山下。','天似穹庐，笼盖四野。','天苍苍，野茫茫，','风吹草低见牛羊。']],
+ ['风','李峤',['解落三秋叶，','能开二月花。','过江千尺浪，','入竹万竿斜。']],
+ ['池上','白居易',['小娃撑小艇，','偷采白莲回。','不解藏踪迹，','浮萍一道开。']],
+ ['赋得古原草送别（节选）','白居易',['离离原上草，','一岁一枯荣。','野火烧不尽，','春风吹又生。']],
+ ['大林寺桃花','白居易',['人间四月芳菲尽，','山寺桃花始盛开。','长恨春归无觅处，','不知转入此中来。']],
+ ['暮江吟','白居易',['一道残阳铺水中，','半江瑟瑟半江红。','可怜九月初三夜，','露似真珠月似弓。']],
+ ['寻隐者不遇','贾岛',['松下问童子，','言师采药去。','只在此山中，','云深不知处。']],
+ ['登乐游原','李商隐',['向晚意不适，','驱车登古原。','夕阳无限好，','只是近黄昏。']],
+ ['蜂','罗隐',['不论平地与山尖，','无限风光尽被占。','采得百花成蜜后，','为谁辛苦为谁甜。']],
+ ['塞下曲','卢纶',['月黑雁飞高，','单于夜遁逃。','欲将轻骑逐，','大雪满弓刀。']],
+ ['逢雪宿芙蓉山主人','刘长卿',['日暮苍山远，','天寒白屋贫。','柴门闻犬吠，','风雪夜归人。']],
+ ['春日','朱熹',['胜日寻芳泗水滨，','无边光景一时新。','等闲识得东风面，','万紫千红总是春。']],
+ ['观书有感','朱熹',['半亩方塘一鉴开，','天光云影共徘徊。','问渠那得清如许？','为有源头活水来。']],
+ ['约客','赵师秀',['黄梅时节家家雨，','青草池塘处处蛙。','有约不来过夜半，','闲敲棋子落灯花。']],
+].map(p => ({t:p[0], a:p[1], c:p[2]}));
+
+// ===== DOM =====
+const $ = id => document.getElementById(id);
+const inputText=$('inputText'), gridTypeSel=$('gridType'), depthSel=$('depth'),
+      colsRange=$('cols'), rowsRange=$('rows'), repRange=$('rep'),
+      colsV=$('colsV'), rowsV=$('rowsV'), repV=$('repV'),
+      modeSel=$('mode'), showDemo=$('showDemo'), fillLast=$('fillLast'), showPunct=$('showPunct'),
+      fontSel=$('fontSel'), pv=$('pv'), pvCtx=pv.getContext('2d');
+let curPage = 1, totalPages = 1, curPages = [[]];
+let customFontName = '';
+
+const work = document.createElement('canvas');
+work.width = W; work.height = H;
+const workCtx = work.getContext('2d');
+
+// ===== 排版 =====
+function getSettings(){
+  const d = depthSel.value;
+  return {
+    text: inputText.value,
+    cols: +colsRange.value, rows: +rowsRange.value, repeat: +repRange.value,
+    blank: modeSel.value === 'copy',
+    showDemo: showDemo.checked, fill: fillLast.checked, punct: showPunct.checked,
+    gridType: gridTypeSel.value,
+    gridColor: COLORS[document.querySelector('input[name=gc]:checked').value],
+    textColor: COLORS[document.querySelector('input[name=tc]:checked').value],
+    hollow: d === 'hollow',
+    alpha: d === 'hollow' ? 0.9 : DEPTHS[d] / 255,
+    fontStack: currentFontStack(),
+  };
+}
+
+function layoutPages(st){
+  const raw = [...st.text].filter(c => !/\s/.test(c));
+  let entries;
+  if(st.punct){
+    entries = raw;                                 // 标点独占一格
+  }else{
+    entries = [];                                  // 标点贴到对应字的右下角
+    let pending = [];                              // 文首标点：挂到下一个字上
+    for(const c of raw){
+      if(/\p{P}/u.test(c)){
+        if(entries.length) entries[entries.length-1].marks.push(c);
+        else pending.push(c);
+      }else{
+        entries.push({ch: c, marks: pending}); pending = [];
+      }
+    }
+  }
+  const seq = [];
+  for(const e of entries){
+    if(typeof e === 'string'){ for(let i=0;i<st.repeat;i++) seq.push(e); }
+    else for(let i=0;i<st.repeat;i++) seq.push(i === st.repeat-1 ? e : e.ch);
+  }
+  const demoRows = st.blank ? Math.ceil(st.rows/2) : st.rows;
+  const cap = st.cols * demoRows;
+  if(!seq.length) return {pages:[[]], cap, demoRows, count:0};
+  const total = Math.max(1, Math.ceil(seq.length / cap));
+  const pages = [];
+  for(let p=0;p<total;p++){
+    let pc = seq.slice(p*cap, (p+1)*cap);
+    if(st.fill && pc.length && pc.length < cap)
+      pc = pc.concat(Array(cap - pc.length).fill(pc[pc.length-1]));
+    pages.push(pc);
+  }
+  return {pages, cap, demoRows, count: entries.length};
+}
+
+// ===== 绘制 =====
+function drawGrid(ctx, x, y, size, type, color, s){
+  ctx.strokeStyle = color;
+  ctx.lineWidth = Math.max(1, 2*s);
+  ctx.strokeRect(x, y, size, size);
+  ctx.lineWidth = Math.max(0.6, 1*s);
+  ctx.beginPath();
+  const m = size/2, x2 = x+size, y2 = y+size;
+  if(type==='田字格' || type==='米字格'){
+    ctx.moveTo(x+m, y); ctx.lineTo(x+m, y2);
+    ctx.moveTo(x, y+m); ctx.lineTo(x2, y+m);
+  }
+  if(type==='米字格'){
+    ctx.moveTo(x, y); ctx.lineTo(x2, y2);
+    ctx.moveTo(x2, y); ctx.lineTo(x, y2);
+  }
+  if(type==='九宫格'){
+    const t = size/3;
+    ctx.moveTo(x+t, y); ctx.lineTo(x+t, y2);
+    ctx.moveTo(x+2*t, y); ctx.lineTo(x+2*t, y2);
+    ctx.moveTo(x, y+t); ctx.lineTo(x2, y+t);
+    ctx.moveTo(x, y+2*t); ctx.lineTo(x2, y+2*t);
+  }
+  if(type==='回宫格'){
+    const a = size/6, b = size/3;
+    ctx.rect(x+a, y+a, size-2*a, size-2*a);
+    ctx.rect(x+b, y+b, size-2*b, size-2*b);
+  }
+  ctx.stroke();
+}
+
+function renderPage(ctx, pageChars, st, s){
+  ctx.save();
+  ctx.setTransform(1,0,0,1,0,0);
+  ctx.fillStyle = '#ffffff';
+  ctx.fillRect(0, 0, W*s, H*s);
+
+  const cell = Math.floor(Math.min((W-2*MX)/st.cols, (H-2*MY)/st.rows));
+  const ox = Math.floor((W - cell*st.cols)/2);
+  const oy = Math.floor((H - cell*st.rows)/2);
+
+  for(let r=0;r<st.rows;r++)
+    for(let c=0;c<st.cols;c++)
+      drawGrid(ctx, (ox+c*cell)*s, (oy+r*cell)*s, cell*s, st.gridType, st.gridColor, s);
+
+  if(st.showDemo && pageChars.length){
+    const fontSize = Math.floor(cell*0.7);
+    ctx.font = `${Math.max(4, Math.floor(fontSize*s))}px ${st.fontStack}`;
+    ctx.textAlign = 'center';
+    ctx.textBaseline = 'alphabetic';
+    let idx = 0;
+    for(let r=0;r<st.rows;r++){
+      const demo = !st.blank || (r%2===0);
+      for(let c=0;c<st.cols;c++){
+        if(!demo || idx >= pageChars.length) continue;
+        const it = pageChars[idx++];
+        const ch = typeof it === 'string' ? it : it.ch;
+        const cx = (ox + c*cell + cell/2)*s;
+        const cyBase = (oy + r*cell + cell/2)*s;
+        const m = ctx.measureText(ch);
+        // 按墨迹包围盒垂直居中，比 em 中点更准
+        const cy = (m.actualBoundingBoxAscent !== undefined)
+          ? cyBase + (m.actualBoundingBoxAscent - m.actualBoundingBoxDescent)/2
+          : cyBase;
+        if(st.hollow){
+          ctx.lineWidth = Math.max(1, fontSize*0.016*s);
+          ctx.strokeStyle = st.textColor;
+          ctx.globalAlpha = st.alpha;
+          ctx.strokeText(ch, cx, cy);
+        }else{
+          ctx.fillStyle = st.textColor;
+          ctx.globalAlpha = st.alpha;
+          ctx.fillText(ch, cx, cy);
+        }
+        if(it && it.marks && it.marks.length){
+          const pSize = Math.max(3, Math.floor(fontSize*0.34*s));
+          ctx.font = `${pSize}px ${st.fontStack}`;
+          ctx.textAlign = 'left';
+          // 全角标点字形偏在其 em 框左下，按墨迹包围盒把右下角钉进格子右下角
+          const cR = (ox + (c+1)*cell - cell*0.07)*s;
+          const cB = (oy + (r+1)*cell - cell*0.06)*s;
+          let cur = cR;
+          for(let mi=0; mi<it.marks.length; mi++){
+            const mm = ctx.measureText(it.marks[mi]);
+            const px = cur - (mm.actualBoundingBoxRight || 0);
+            const py = cB - (mm.actualBoundingBoxDescent || 0);
+            if(st.hollow){
+              ctx.lineWidth = Math.max(0.8, pSize*0.05);
+              ctx.strokeStyle = st.textColor;
+              ctx.globalAlpha = st.alpha;
+              ctx.strokeText(it.marks[mi], px, py);
+            }else{
+              ctx.fillStyle = st.textColor;
+              ctx.globalAlpha = st.alpha;
+              ctx.fillText(it.marks[mi], px, py);
+            }
+            cur = px - (mm.actualBoundingBoxLeft || 0) - pSize*0.15;
+          }
+          ctx.globalAlpha = 1;
+          ctx.font = `${Math.max(4, Math.floor(fontSize*s))}px ${st.fontStack}`;
+          ctx.textAlign = 'center';
+        }
+        ctx.globalAlpha = 1;
+      }
+    }
+  }
+  ctx.restore();
+}
+
+// ===== 主流程 =====
+function rerender(){
+  const st = getSettings();
+  const {pages, cap, count} = layoutPages(st);
+  curPages = pages;
+  totalPages = pages.length;
+  if(curPage > totalPages) curPage = totalPages;
+  renderPage(workCtx, pages[curPage-1], st, 1);
+  pvCtx.drawImage(work, 0, 0, PW, PH);
+  $('pageInfo').textContent = `第 ${curPage} 页 / 共 ${totalPages} 页`;
+  $('prevBtn').disabled = curPage <= 1;
+  $('nextBtn').disabled = curPage >= totalPages;
+  $('metaInfo').textContent = `共 ${count} 字 · 每页 ${cap} 格 · ${st.gridType} · ${st.gridType ? depthLabel() : ''}`;
+  saveSettings();
+}
+
+function depthLabel(){ return $('depth').selectedOptions[0].textContent; }
+
+const debounce = (fn, ms) => { let t; return (...a)=>{ clearTimeout(t); t=setTimeout(()=>fn(...a), ms); }; };
+const scheduleRender = debounce(rerender, 120);
+
+// ===== 导出 =====
+async function downloadBlob(blob, name){
+  // 优先系统“另存为”对话框：可自选保存位置与文件名（需用户手势触发）
+  if(window.showSaveFilePicker){
+    try{
+      const ext = name.includes('.') ? name.slice(name.lastIndexOf('.')) : '';
+      const types = {
+        '.pdf': [{accept:{'application/pdf':['.pdf']}, description:'PDF 文件'}],
+        '.png': [{accept:{'image/png':['.png']}, description:'PNG 图片'}],
+      };
+      const h = await showSaveFilePicker({suggestedName: name, types: types[ext]});
+      const w = await h.createWritable();
+      await w.write(blob); await w.close();
+      return;
+    }catch(e){
+      if(e && e.name === 'AbortError') return;     // 用户取消
+      // 其它情况（如无用户手势）回退为普通下载
+    }
+  }
+  const u = URL.createObjectURL(blob);
+  const a = document.createElement('a');
+  a.href = u; a.download = name;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(()=>URL.revokeObjectURL(u), 8000);
+}
+
+$('pngBtn').onclick = () => {
+  work.toBlob(b => downloadBlob(b, `字帖_第${curPage}页.png`), 'image/png');
+};
+
+function dataURLtoU8(url){
+  const b = atob(url.split(',')[1]);
+  const a = new Uint8Array(b.length);
+  for(let i=0;i<b.length;i++) a[i] = b.charCodeAt(i);
+  return a;
+}
+
+// 手写最小 PDF 生成器：每页嵌入一张 JPEG（DCTDecode），A4 纵向
+function buildPdf(jpegs){
+  const enc = new TextEncoder();
+  const parts = []; let len = 0; const offs = [];
+  const push = b => { parts.push(b); len += b.length; };
+  const pushStr = s => push(enc.encode(s));
+  const mark = n => { offs[n] = len; };
+  push(new Uint8Array([0x25,0x50,0x44,0x46,0x2d,0x31,0x2e,0x34,0x0a,0x25,0xe2,0xe3,0xcf,0xd3,0x0a]));
+
+  const pageObjs = []; let next = 3;
+  jpegs.forEach(jpg => {
+    const imgN = next++, contN = next++, pgN = next++;
+    pageObjs.push(pgN);
+    mark(imgN);
+    pushStr(`${imgN} 0 obj\n<< /Type /XObject /Subtype /Image /Width ${W} /Height ${H} /ColorSpace /DeviceRGB /BitsPerComponent 8 /Filter /DCTDecode /Length ${jpg.length} >>\nstream\n`);
+    push(jpg);
+    pushStr('\nendstream\nendobj\n');
+    const content = 'q 595.28 0 0 841.89 0 0 cm /Im0 Do Q';
+    mark(contN);
+    pushStr(`${contN} 0 obj\n<< /Length ${enc.encode(content).length} >>\nstream\n${content}\nendstream\nendobj\n`);
+    mark(pgN);
+    pushStr(`${pgN} 0 obj\n<< /Type /Page /Parent 2 0 R /MediaBox [0 0 595.28 841.89] /Resources << /ProcSet [/PDF /ImageC] /XObject << /Im0 ${imgN} 0 R >> >> /Contents ${contN} 0 R >>\nendobj\n`);
+  });
+
+  const kids = pageObjs.map(n=>`${n} 0 R`).join(' ');
+  const maxObj = next - 1;
+  mark(2); pushStr(`2 0 obj\n<< /Type /Pages /Kids [${kids}] /Count ${jpegs.length} >>\nendobj\n`);
+  mark(1); pushStr(`1 0 obj\n<< /Type /Catalog /Pages 2 0 R >>\nendobj\n`);
+
+  const xrefPos = len;
+  let xref = `xref\n0 ${maxObj+1}\n0000000000 65535 f \n`;
+  for(let n=1;n<=maxObj;n++) xref += String(offs[n]).padStart(10,'0') + ' 00000 n \n';
+  xref += `trailer\n<< /Size ${maxObj+1} /Root 1 0 R >>\nstartxref\n${xrefPos}\n%%EOF`;
+  pushStr(xref);
+
+  const out = new Uint8Array(len);
+  let o = 0; for(const p of parts){ out.set(p, o); o += p.length; }
+  return out;
+}
+
+async function exportPdf(){
+  const btn = $('pdfBtn'), old = btn.textContent;
+  btn.disabled = true;
+  try{
+    const st = getSettings();
+    const {pages} = layoutPages(st);
+    const jpegs = [];
+    for(let i=0;i<pages.length;i++){
+      btn.textContent = `导出中 ${i+1}/${pages.length} …`;
+      renderPage(workCtx, pages[i], st, 1);
+      jpegs.push(dataURLtoU8(work.toDataURL('image/jpeg', 0.92)));
+      await new Promise(r=>setTimeout(r));
+    }
+    const bytes = buildPdf(jpegs);
+    downloadBlob(new Blob([bytes], {type:'application/pdf'}), `字帖_共${pages.length}页.pdf`);
+  }catch(e){
+    alert('导出失败：' + e.message);
+  }finally{
+    btn.disabled = false; btn.textContent = old;
+    rerender();
+  }
+}
+$('pdfBtn').onclick = exportPdf;
+
+// ===== 字体 =====
+function fontAvailable(family){
+  try{ return document.fonts.check(`12px "${family}"`); }catch(e){ return true; }
+}
+function buildFontOptions(){
+  fontSel.textContent = '';
+  for(const f of FONT_LIST){
+    const opt = document.createElement('option');
+    opt.value = f.label;
+    opt.textContent = f.label + (fontAvailable(f.check) ? '' : '（本机未检测到）');
+    fontSel.appendChild(opt);
+  }
+}
+function currentFontStack(){
+  if(fontSel.value === '__custom') return '"zitieCustom","KaiTi","STKaiti",serif';
+  const f = FONT_LIST.find(f=>f.label===fontSel.value);
+  return f ? f.stack : FONT_LIST[0].stack;
+}
+// 与 HTML 同目录的 fonts/ 下若有田英章字体则自动加载（下载：fonts/田英章楷书.ttf）
+async function loadLocalFonts(){
+  const locals = [
+    ['田英章楷书.ttf',        '田英章楷书', 'zitieTYZKai'],
+    ['田英章硬笔楷书简体.ttf', '田英章硬笔楷书', 'zitieTYZYB'],
+  ];
+  const found = [];
+  for(const [file, label, fam] of locals){
+    try{
+      const ff = new FontFace(fam, `url('./fonts/${encodeURIComponent(file)}')`);
+      await ff.load();
+      document.fonts.add(ff);
+      found.push({label, stack:`"${fam}","KaiTi",serif`, check:fam});
+    }catch(e){}
+  }
+  if(!found.length) return;
+  for(let i = found.length - 1; i >= 0; i--) FONT_LIST.unshift(found[i]);
+  buildFontOptions();
+  if(pendingFont && [...fontSel.options].some(o=>o.value===pendingFont)){
+    fontSel.value = pendingFont;
+  }else if(!pendingFont){
+    fontSel.value = found.some(f=>f.label==='田英章楷书') ? '田英章楷书' : found[0].label;
+  }
+  rerender();
+}
+$('fontUploadBtn').onclick = () => $('fontFile').click();
+$('fontFile').onchange = async e => {
+  const file = e.target.files[0];
+  if(!file) return;
+  try{
+    const buf = await file.arrayBuffer();
+    const ff = new FontFace('zitieCustom', buf);
+    await ff.load();
+    document.fonts.add(ff);
+    customFontName = file.name;
+    let opt = fontSel.querySelector('option[value=__custom]');
+    if(!opt){
+      opt = document.createElement('option');
+      opt.value = '__custom';
+      fontSel.appendChild(opt);
+    }
+    opt.textContent = `已上传：${file.name}`;
+    fontSel.value = '__custom';
+    rerender();
+  }catch(err){
+    alert('字体加载失败，请使用 .ttf / .otf / .woff 文件（暂不支持 .ttc 字体集合）');
+  }
+  e.target.value = '';
+};
+
+// ===== 诗词库 =====
+function renderPoemList(kw){
+  const list = $('poemList');
+  list.textContent = '';
+  const k = (kw||'').trim();
+  for(const p of POEMS){
+    if(k && !p.t.includes(k) && !p.a.includes(k)) continue;
+    const b = document.createElement('button');
+    const t = document.createElement('b'); t.textContent = p.t;
+    const s = document.createElement('span'); s.textContent = p.a;
+    b.append(t, s);
+    b.onclick = () => {
+      inputText.value = `《${p.t}》${p.a}\n` + p.c.join('\n');
+      curPage = 1;
+      rerender();
+      $('poemDetails').removeAttribute('open');
+    };
+    list.appendChild(b);
+  }
+  if(!list.children.length){
+    const d = document.createElement('div');
+    d.textContent = '没有匹配的诗词';
+    d.style.cssText = 'font-size:12px;color:#9ca3af;padding:4px 8px';
+    list.appendChild(d);
+  }
+}
+$('poemSearch').oninput = e => renderPoemList(e.target.value);
+
+// ===== 设置持久化 =====
+const LS_KEY = 'zitie-html-v1';
+let pendingFont = null;   // 本地字体异步加载完成前，先记住想恢复的字体选择
+function saveSettings(){
+  try{
+    localStorage.setItem(LS_KEY, JSON.stringify({
+      text: inputText.value, gridType: gridTypeSel.value,
+      gc: document.querySelector('input[name=gc]:checked').value,
+      tc: document.querySelector('input[name=tc]:checked').value,
+      depth: depthSel.value, cols: colsRange.value, rows: rowsRange.value,
+      rep: repRange.value, mode: modeSel.value,
+      showDemo: showDemo.checked, fill: fillLast.checked, punct: showPunct.checked, font: fontSel.value,
+    }));
+  }catch(e){}
+}
+function restoreSettings(){
+  try{
+    const s = JSON.parse(localStorage.getItem(LS_KEY) || 'null');
+    if(!s) return;
+    if(typeof s.text === 'string') inputText.value = s.text;
+    if(s.gridType) gridTypeSel.value = s.gridType;
+    if(s.gc) document.querySelector(`input[name=gc][value="${s.gc}"]`).checked = true;
+    if(s.tc) document.querySelector(`input[name=tc][value="${s.tc}"]`).checked = true;
+    if(s.depth) depthSel.value = s.depth;
+    if(s.cols) colsRange.value = s.cols;
+    if(s.rows) rowsRange.value = s.rows;
+    if(s.rep) repRange.value = s.rep;
+    if(s.mode) modeSel.value = s.mode;
+    pendingFont = s.font || null;
+    if(pendingFont && [...fontSel.options].some(o=>o.value===pendingFont)) fontSel.value = pendingFont;
+    showDemo.checked = s.showDemo !== false;
+    fillLast.checked = !!s.fill;
+    showPunct.checked = !!s.punct;
+    colsV.textContent = colsRange.value;
+    rowsV.textContent = rowsRange.value;
+    repV.textContent = repRange.value;
+  }catch(e){}
+}
+
+// ===== 事件绑定 =====
+for(const el of [inputText, gridTypeSel, depthSel, modeSel, fontSel]) el.addEventListener('input', scheduleRender);
+for(const el of [showDemo, fillLast, showPunct]) el.addEventListener('change', scheduleRender);
+for(const el of document.querySelectorAll('input[name=gc],input[name=tc]')) el.addEventListener('change', scheduleRender);
+for(const [r, o] of [[colsRange,colsV],[rowsRange,rowsV],[repRange,repV]]){
+  r.addEventListener('input', () => { o.textContent = r.value; scheduleRender(); });
+}
+$('prevBtn').onclick = () => { if(curPage>1){ curPage--; rerender(); } };
+$('nextBtn').onclick = () => { if(curPage<totalPages){ curPage++; rerender(); } };
+document.addEventListener('keydown', e => {
+  if(e.target.matches('input,textarea,select')) return;
+  if(e.key === 'ArrowLeft') $('prevBtn').click();
+  if(e.key === 'ArrowRight') $('nextBtn').click();
+});
+
+// ===== 测试钩子（不影响正常使用） =====
+window.zitie = {
+  rerender, getSettings, layoutPages,
+  pages: () => curPages,
+  pdfSummary: async () => {
+    const st = getSettings();
+    const {pages} = layoutPages(st);
+    const jpegs = pages.map(p => { renderPage(workCtx, p, st, 1); return dataURLtoU8(work.toDataURL('image/jpeg', 0.9)); });
+    const bytes = buildPdf(jpegs);
+    const dec = new TextDecoder();
+    // 校验 xref：每个偏移处应是 "N 0 obj"
+    const head = dec.decode(bytes.slice(0, 8));
+    const startxref = +dec.decode(bytes.slice(-64)).match(/startxref\s+(\d+)/)[1];
+    const xrefText = dec.decode(bytes.slice(startxref, startxref + 40 + 22*(jpegs.length*3+2)));
+    const lines = xrefText.trim().split('\n');
+    let xrefOk = lines[0] === 'xref';
+    const count = +lines[1].split(' ')[1];
+    for(let n=1;n<count && xrefOk;n++){
+      const off = +lines[2+n].slice(0,10);
+      xrefOk = dec.decode(bytes.slice(off, off+12)) === `${n} 0 obj\n`.slice(0,12);
+    }
+    return {size: bytes.length, head, pages: jpegs.length, count, xrefOk};
+  },
+  pdfBlobUrl: async () => {
+    const st = getSettings();
+    const {pages} = layoutPages(st);
+    const jpegs = pages.map(p => { renderPage(workCtx, p, st, 1); return dataURLtoU8(work.toDataURL('image/jpeg', 0.9)); });
+    return URL.createObjectURL(new Blob([buildPdf(jpegs)], {type:'application/pdf'}));
+  },
+};
+
+// ===== 初始化 =====
+buildFontOptions();
+if(!inputText.value){
+  const p = POEMS[1]; // 静夜思
+  inputText.value = `《${p.t}》${p.a}\n` + p.c.join('\n');
+}
+restoreSettings();
+loadLocalFonts();
+renderPoemList('');
+rerender();
+</script>
+</body>
+</html>
